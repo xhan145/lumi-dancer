@@ -1,0 +1,16 @@
+LUMI//DANCER — Audio-Reactive Dancing Mascot for Ableton Live
+Copyright (c) 2026 ENAHKEM Audio
+
+This project's source code is licensed under the GNU Affero General Public
+License, version 3 (AGPL-3.0-only).
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/agpl-3.0>.
+
+This licence choice matches the JUCE open-source tier used by the build
+(JUCE_DISPLAY_SPLASH_SCREEN=1). Shipping a closed-source build requires a
+commercial JUCE licence and a licence change agreed by the copyright holder.
+
+The Lumi character design, the LUMI//DANCER name and the crescent-and-star
+emblem are original works created for this project. They are covered by the
+same licence as the source code when redistributed with it.

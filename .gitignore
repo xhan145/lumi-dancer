@@ -1,0 +1,26 @@
+# Build output
+build/
+out/
+cmake-build-*/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+compile_commands.json
+
+# Python
+__pycache__/
+*.pyc
+
+# Test/render artifacts (never commit user audio or temporary renders)
+renders/
+test-audio/
+*.wav
+
+# Packaging output
+dist/
+
+# Local build logs
+build-*.log

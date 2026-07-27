@@ -1,0 +1,71 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "core",
+      "displayName": "Core only (JUCE-free, fast tests)",
+      "generator": "Visual Studio 17 2022",
+      "architecture": { "value": "x64" },
+      "binaryDir": "${sourceDir}/build/core",
+      "cacheVariables": {
+        "LUMI_BUILD_PLUGIN": "OFF",
+        "LUMI_BUILD_TESTS": "OFF",
+        "LUMI_BUILD_CORE_TESTS": "ON"
+      }
+    },
+    {
+      "name": "core-linux",
+      "displayName": "Core only (Unix Makefiles)",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/core",
+      "condition": { "type": "notEquals", "lhs": "${hostSystemName}", "rhs": "Windows" },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "LUMI_BUILD_PLUGIN": "OFF",
+        "LUMI_BUILD_TESTS": "OFF",
+        "LUMI_BUILD_CORE_TESTS": "ON"
+      }
+    },
+    {
+      "name": "windows",
+      "displayName": "Windows (VS 2022, x64) full plugin",
+      "generator": "Visual Studio 17 2022",
+      "architecture": { "value": "x64" },
+      "binaryDir": "${sourceDir}/build/windows",
+      "cacheVariables": {
+        "LUMI_BUILD_TESTS": "ON",
+        "LUMI_BUILD_CORE_TESTS": "ON"
+      }
+    },
+    {
+      "name": "windows-asan",
+      "displayName": "Windows AddressSanitizer",
+      "inherits": "windows",
+      "binaryDir": "${sourceDir}/build/windows-asan",
+      "cacheVariables": {
+        "LUMI_ENABLE_ASAN": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "core",            "configurePreset": "core",    "configuration": "Release" },
+    { "name": "core-debug",      "configurePreset": "core",    "configuration": "Debug" },
+    { "name": "windows-debug",   "configurePreset": "windows", "configuration": "Debug" },
+    { "name": "windows-release", "configurePreset": "windows", "configuration": "Release" }
+  ],
+  "testPresets": [
+    {
+      "name": "core",
+      "configurePreset": "core",
+      "configuration": "Release",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "windows-tests",
+      "configurePreset": "windows",
+      "configuration": "Release",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

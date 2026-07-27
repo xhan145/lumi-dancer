@@ -1,0 +1,58 @@
+name: windows-build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake --preset windows
+
+      - name: Build Debug
+        run: cmake --build --preset windows-debug
+
+      - name: Build Release
+        run: cmake --build --preset windows-release
+
+      - name: Run tests
+        run: ctest --preset windows-tests
+
+      - name: Archive test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs
+          path: build/windows/Testing/**/*.log
+          if-no-files-found: ignore
+
+      - name: Archive VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUMI-DANCER-VST3
+          path: "build/windows/LumiDancer_artefacts/Release/VST3/"
+
+      - name: Archive Standalone
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUMI-DANCER-Standalone
+          path: "build/windows/LumiDancer_artefacts/Release/Standalone/"
+
+      - name: Package portable zip
+        run: ./scripts/package.ps1
+        shell: pwsh
+
+      - name: Archive portable package
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUMI-DANCER-portable
+          path: dist/*.zip
