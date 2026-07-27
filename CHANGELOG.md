@@ -2,9 +2,10 @@
 
 All notable changes to LUMI//DANCER are documented here.
 
-## [0.1.0] - unreleased
+## [0.1.0-alpha] - 2026-07-27
 
-Initial alpha.
+Initial alpha. Portable package: `dist/LUMI-DANCER-v0.1.0-win64.zip`
+(built by `scripts/package.ps1`; not committed).
 
 - Transparent audio pass-through (mono/stereo/multichannel) with a
   real-time-safe analysis tap.
