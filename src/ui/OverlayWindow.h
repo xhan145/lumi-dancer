@@ -64,6 +64,9 @@ public:
     bool isOwnedBy (const LumiDancerProcessor* p) const { return ownerProcessor == p; }
     bool hasOverlay() const { return window != nullptr; }
 
+    // For tests: the live overlay component (nullptr when closed).
+    juce::Component* overlayComponent() const { return window.get(); }
+
     // Called by the processor destructor: tears the overlay down synchronously
     // when the owning instance dies so the window never dangles.
     void notifyProcessorDying (LumiDancerProcessor& processor);

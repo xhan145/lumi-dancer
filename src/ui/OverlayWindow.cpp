@@ -59,7 +59,11 @@ OverlayWindow::~OverlayWindow()
 void OverlayWindow::addToDesktopWithFlags()
 {
     const LumiSettings s = processor.getSettings();
-    int styleFlags = juce::ComponentPeer::windowIsTemporary;
+    // windowIsSemiTransparent is what makes the Windows peer a layered
+    // window with per-pixel alpha — without it the transparent stage
+    // renders as an opaque black box.
+    int styleFlags = juce::ComponentPeer::windowIsTemporary
+                   | juce::ComponentPeer::windowIsSemiTransparent;
     if (s.overlay.clickThrough)
         styleFlags |= juce::ComponentPeer::windowIgnoresMouseClicks;
     addToDesktop (styleFlags);
