@@ -20,6 +20,9 @@ never touches your audio: the dry path is bit-exact.
 - **Ten dance styles** — Bounce, Kawaii Pop, Orbit, Groove, Hyper, Chill,
   Breakcore, Drum & Bass, Trance, Freestyle. Each is real, distinct
   choreography (enforced by automated tests, not just names).
+- **Two art styles** — Painted (Anime): 16 embedded hand-painted sprite
+  poses beat-stepped per style, with a sunglasses moment on big drops;
+  or Vector: the procedural mascot with full hair/outfit customisation.
 - **Audio-reactive mapping** — kicks bounce the body, snares snap the arms
   and head, hats sparkle, RMS drives amplitude, silence sends Lumi to idle
   (breathing, blinking, waving, eventually sitting and sleeping).

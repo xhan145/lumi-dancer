@@ -1,6 +1,8 @@
 #include "ui/StageComponent.h"
 
+#include "dance/SpriteChoreo.h"
 #include "plugin/Parameters.h"
+#include "ui/SpriteRenderer.h"
 #include "ui/Theme.h"
 
 using namespace lumi;
@@ -395,18 +397,34 @@ void StageComponent::paint (juce::Graphics& g)
 
         drawParticles (g, bounds);
 
-        RenderLook look;
-        look.hair = HairPalette (cachedSettings.hairPalette);
-        look.outfit = Outfit (cachedSettings.outfit);
-        look.accent = GoldAccent (cachedSettings.goldAccent);
-        look.accessories = cachedSettings.accessories;
-        look.mirror = mirrored;
-        look.highContrast = cachedSettings.accessibility.highContrast;
-        look.timeSeconds = lastTickSeconds;
-
         auto lumiBounds = bounds.reduced (bounds.getWidth() * 0.5f * (1.0f - 0.62f * userScale),
                                           bounds.getHeight() * 0.5f * (1.0f - 0.94f * userScale));
-        LumiRenderer::draw (g, currentPose, look, lumiBounds);
+
+        if (cachedSettings.artStyle == 0)
+        {
+            // Painted (anime) style: hand-painted sprite frames, beat-stepped
+            // in the core, riding the rig pose's bounce/tilt/squash.
+            const SpriteState sprite = evaluateSpriteState (
+                DanceStyle (clamp (int (processor.apvts.getRawParameterValue (
+                                            params::danceStyle)->load()),
+                                   0, int (DanceStyle::Count) - 1)),
+                clock.beatPosition(), choreographer.reactiveFrame(),
+                cachedSettings.seed, currentPose, choreographer.activityLevel(),
+                choreographer.idleState());
+            SpriteRenderer::draw (g, sprite, lumiBounds, mirrored);
+        }
+        else
+        {
+            RenderLook look;
+            look.hair = HairPalette (cachedSettings.hairPalette);
+            look.outfit = Outfit (cachedSettings.outfit);
+            look.accent = GoldAccent (cachedSettings.goldAccent);
+            look.accessories = cachedSettings.accessories;
+            look.mirror = mirrored;
+            look.highContrast = cachedSettings.accessibility.highContrast;
+            look.timeSeconds = lastTickSeconds;
+            LumiRenderer::draw (g, currentPose, look, lumiBounds);
+        }
 
         if (opacity < 0.999f)
             g.endTransparencyLayer();

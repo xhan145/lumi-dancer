@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(LUMIDANCER
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "LUMI//DANCER - Audio-reactive dancing mascot for Ableton Live"
     LANGUAGES C CXX)
 
@@ -120,6 +120,15 @@ if(LD_NEED_JUCE)
         JUCE_DISPLAY_SPLASH_SCREEN=1        # required by the JUCE AGPL/open-source tier
         LUMI_VERSION_STRING="${PROJECT_VERSION}")
 
+    # Embedded painted sprite frames (original project artwork).
+    file(GLOB LD_SPRITE_FILES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/resources/sprites/*.png")
+    juce_add_binary_data(LumiSpriteData
+        NAMESPACE LumiSprites
+        HEADER_NAME LumiSpritesData.h
+        SOURCES ${LD_SPRITE_FILES})
+    set_target_properties(LumiSpriteData PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
     set(LD_JUCE_MODULES
         juce::juce_audio_basics
         juce::juce_audio_devices
@@ -170,7 +179,7 @@ if(LD_NEED_JUCE AND LUMI_BUILD_PLUGIN)
     target_include_directories(LumiDancer PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
     target_compile_definitions(LumiDancer PUBLIC ${LD_COMMON_DEFS} JUCE_MODAL_LOOPS_PERMITTED=0)
     target_link_libraries(LumiDancer
-        PRIVATE lumi_core ${LD_JUCE_MODULES}
+        PRIVATE lumi_core LumiSpriteData ${LD_JUCE_MODULES}
         PUBLIC  juce::juce_recommended_config_flags
                 juce::juce_recommended_warning_flags)
     if(LUMI_ENABLE_LTO)
@@ -199,7 +208,7 @@ if(LD_NEED_JUCE AND LUMI_BUILD_TESTS)
         JucePlugin_Name="LUMI//DANCER"
         LUMI_TEST_BUILD=1)
     target_link_libraries(LumiTests
-        PRIVATE lumi_core ${LD_JUCE_MODULES}
+        PRIVATE lumi_core LumiSpriteData ${LD_JUCE_MODULES}
         PUBLIC  juce::juce_recommended_config_flags
                 juce::juce_recommended_warning_flags)
     ld_apply_sanitizers(LumiTests)

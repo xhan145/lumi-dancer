@@ -11,9 +11,13 @@ Notes:
   archive; it is not vendored into this repository.
 - The JUCE splash screen remains enabled (`JUCE_DISPLAY_SPLASH_SCREEN=1`) as
   required by the JUCE open-source tier.
-- The Lumi mascot is rendered procedurally from vector paths defined in this
-  repository's source code. No third-party character art, sprite sheets,
-  fonts beyond JUCE's bundled defaults, or animation middleware are used.
+- The Lumi mascot ships in two art styles. The Vector style is rendered
+  procedurally from vector paths defined in this repository's source code.
+  The Painted (Anime) style uses the sprite frames in `resources/sprites/`,
+  which are original artwork created for this project by the project owner
+  (AI-assisted generation from the project's own character design) and are
+  licensed with the repository. No third-party character art, fonts beyond
+  JUCE's bundled defaults, or animation middleware are used.
 - No machine-learning models, cloud services, telemetry, accounts or
   proprietary host SDKs are used. The plugin runs entirely locally.
 - The JUCE-free core library (`lumi_core`) depends only on the C++20
