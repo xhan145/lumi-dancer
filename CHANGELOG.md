@@ -2,19 +2,6 @@
 
 All notable changes to LUMI//DANCER are documented here.
 
-## [0.2.0] - 2026-07-27
-
-- NEW: Painted (Anime) art style — 16 hand-painted sprite poses (original
-  project artwork, embedded) beat-stepped per dance style with bounce/tilt/
-  squash riding the rig pose; sunglasses "Cool" frame on sustained drops;
-  sitting/shy frames while idle. Selectable per instance (Painted default,
-  Vector still available with full customisation).
-- FIX: detached overlay is now a true per-pixel-alpha layered window —
-  transparent desktop-pet background instead of a black box (regression
-  test asserts WS_EX_LAYERED on the live overlay).
-- Vector Lumi rebuilt from welded silhouette paths (~half the primitives,
-  cleaner look).
-
 ## [0.1.0-alpha] - 2026-07-27
 
 Initial alpha. Portable package: `dist/LUMI-DANCER-v0.1.0-win64.zip`

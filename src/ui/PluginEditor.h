@@ -65,7 +65,7 @@ private:
     juce::ToggleButton highContrastToggle { "High Contrast" };
 
     // ------------------------------------------------------ bottom (look)
-    juce::ComboBox artStyleBox, outfitBox, hairBox, accentBox, backgroundBox, cameraBox, fpsBox;
+    juce::ComboBox outfitBox, hairBox, accentBox, backgroundBox, cameraBox, fpsBox;
     juce::TextButton accessoriesButton { "Accessories" };
     juce::ToggleButton freezeToggle { "Freeze" };
     juce::TextButton randomizeButton { "Randomize" };

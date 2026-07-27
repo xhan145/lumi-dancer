@@ -72,7 +72,6 @@ struct LumiSettings
     bool  beatLock = false;
 
     // Appearance
-    int      artStyle = 0;                    // 0 = Painted (anime), 1 = Vector
     int      hairPalette = 0;                 // HairPalette
     int      outfit = 0;                      // Outfit
     int      goldAccent = 0;                  // GoldAccent

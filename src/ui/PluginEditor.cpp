@@ -320,16 +320,6 @@ LumiDancerEditor::LumiDancerEditor (LumiDancerProcessor& processorIn)
     };
     addAndMakeVisible (randomizeButton);
 
-    artStyleBox.addItemList ({ "Painted (Anime)", "Vector" }, 1);
-    artStyleBox.setTooltip ("Art style: hand-painted anime sprites or the procedural vector mascot");
-    artStyleBox.onChange = [this]
-    {
-        if (refreshing)
-            return;
-        mutateSettings ([this] (LumiSettings& s) { s.artStyle = artStyleBox.getSelectedId() - 1; });
-    };
-    addAndMakeVisible (artStyleBox);
-
     hairBox.addItemList ({ "Lavender Hair", "Light Purple Hair", "Deep Plum Hair",
                            "Cream + Lavender Tips" }, 1);
     hairBox.setTooltip ("Hair palette");
@@ -545,7 +535,6 @@ void LumiDancerEditor::refreshControlsFromSettings()
     seedLabel.setText ("Seed " + juce::String (int64_t (s.seed % 1000000)),
                        juce::dontSendNotification);
     seedLockToggle.setToggleState (s.seedLock, juce::dontSendNotification);
-    artStyleBox.setSelectedId (s.artStyle + 1, juce::dontSendNotification);
     useRoutineToggle.setToggleState (s.useRoutine, juce::dontSendNotification);
     routineBarsBox.setSelectedId (s.routineBars, juce::dontSendNotification);
     playbackModeBox.setSelectedId (s.playbackMode + 1, juce::dontSendNotification);
@@ -593,8 +582,7 @@ void LumiDancerEditor::updateCompactMode()
                                 (juce::Component*) &beatLockToggle, (juce::Component*) &fxHeader,
                                 (juce::Component*) &reducedMotionToggle, (juce::Component*) &noFlashToggle,
                                 (juce::Component*) &highContrastToggle, (juce::Component*) &freezeToggle,
-                                (juce::Component*) &randomizeButton, (juce::Component*) &artStyleBox,
-                                (juce::Component*) &hairBox,
+                                (juce::Component*) &randomizeButton, (juce::Component*) &hairBox,
                                 (juce::Component*) &outfitBox, (juce::Component*) &accentBox,
                                 (juce::Component*) &backgroundBox, (juce::Component*) &cameraBox,
                                 (juce::Component*) &fpsBox, (juce::Component*) &accessoriesButton,
@@ -664,8 +652,6 @@ void LumiDancerEditor::resized()
     bottomRow1.removeFromLeft (4);
     randomizeButton.setBounds (bottomRow1.removeFromLeft (84));
     bottomRow1.removeFromLeft (8);
-    artStyleBox.setBounds (bottomRow1.removeFromLeft (130));
-    bottomRow1.removeFromLeft (4);
     hairBox.setBounds (bottomRow1.removeFromLeft (150));
     bottomRow1.removeFromLeft (4);
     outfitBox.setBounds (bottomRow1.removeFromLeft (130));

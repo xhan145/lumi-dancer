@@ -98,7 +98,6 @@ void clampSettings (LumiSettings& s)
     s.transientSens = clamp (sanitize (s.transientSens, 1.0f), 0.0f, 2.0f);
     s.smoothing = clamp01 (sanitize (s.smoothing, 0.35f));
 
-    s.artStyle = clamp (s.artStyle, 0, 1);
     s.hairPalette = clamp (s.hairPalette, 0, int (HairPalette::Count) - 1);
     s.outfit = clamp (s.outfit, 0, int (Outfit::Count) - 1);
     s.goldAccent = clamp (s.goldAccent, 0, int (GoldAccent::Count) - 1);
@@ -163,7 +162,6 @@ std::string serializeSettings (const LumiSettings& s)
     appendKv (out, "react.smoothing", s.smoothing);
     appendKv (out, "react.beatLock", s.beatLock);
 
-    appendKv (out, "look.artStyle", s.artStyle);
     appendKv (out, "look.hair", s.hairPalette);
     appendKv (out, "look.outfit", s.outfit);
     appendKv (out, "look.accent", s.goldAccent);
@@ -270,7 +268,6 @@ bool deserializeSettings (const std::string& text, LumiSettings& out)
         else if (key == "react.transient")    out.transientSens = toFloat (value, out.transientSens);
         else if (key == "react.smoothing")    out.smoothing = toFloat (value, out.smoothing);
         else if (key == "react.beatLock")     out.beatLock = toBool (value, out.beatLock);
-        else if (key == "look.artStyle")      out.artStyle = toInt (value, out.artStyle);
         else if (key == "look.hair")          out.hairPalette = toInt (value, out.hairPalette);
         else if (key == "look.outfit")        out.outfit = toInt (value, out.outfit);
         else if (key == "look.accent")        out.goldAccent = toInt (value, out.goldAccent);
