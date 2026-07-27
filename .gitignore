@@ -24,3 +24,4 @@ dist/
 
 # Local build logs
 build-*.log
+swap-result.txt

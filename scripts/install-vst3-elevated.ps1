@@ -7,14 +7,23 @@ $src  = 'C:\Users\xhan1\lumi-dancer\build\windows\LumiDancer_artefacts\Release\V
 $log  = 'C:\Users\xhan1\lumi-dancer\swap-result.txt'
 
 try {
-    # Sweep any unlockable leftovers from previous swaps.
-    Get-ChildItem $v3 -Filter ($name + '.old*') -ErrorAction SilentlyContinue |
+    # Quarantine lives OUTSIDE the VST3 tree: hosts scan the VST3 directory
+    # recursively, so a renamed-in-place bundle would still get found and
+    # loaded. Same volume as VST3, so moving a locked (memory-mapped)
+    # bundle still succeeds as a rename.
+    $trash = 'C:\ProgramData\lumi-dancer-old-vst3'
+    New-Item -ItemType Directory -Force -Path $trash | Out-Null
+    Get-ChildItem $trash -ErrorAction SilentlyContinue |
         ForEach-Object { try { Remove-Item $_.FullName -Recurse -Force -ErrorAction Stop } catch {} }
+    # Also sweep any legacy in-tree .old leftovers from earlier installs.
+    Get-ChildItem $v3 -Filter ($name + '.old*') -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            try { Move-Item $_.FullName (Join-Path $trash ([System.IO.Path]::GetRandomFileName())) -ErrorAction Stop } catch {}
+        }
 
     $dst = Join-Path $v3 $name
     if (Test-Path $dst) {
-        # Unique suffix: a still-locked previous .old must not block the swap.
-        Rename-Item $dst ($name + '.old' + [System.IO.Path]::GetRandomFileName().Substring(0,4))
+        Move-Item $dst (Join-Path $trash ([System.IO.Path]::GetRandomFileName()))
     }
     Copy-Item -Recurse -Force $src $dst
     'SWAP-OK' | Out-File $log
