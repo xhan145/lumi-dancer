@@ -24,33 +24,46 @@ struct Metrics
 
 Colour col (Rgba c) { return Colour (c.r, c.g, c.b); }
 
-// Rounded capsule from `start`, pointing at `angle` (0 = straight down),
-// of the given length/thickness. Returns the end point for limb chaining.
-Point<float> drawCapsule (Graphics& g, Point<float> start, float angle,
-                          float length, float thickness,
-                          Colour fill, Colour outlineColour, float outlineWidth)
+// The unified-silhouette technique: stroke the whole multi-subpath region
+// FIRST (underneath), then fill on top. Any number of subshapes welds into
+// one clean outlined silhouette — two draw ops per region, no interior seams.
+void outlinedFill (Graphics& g, const Path& path, Colour fill, Colour outline,
+                   float outlineWidth)
+{
+    g.setColour (outline);
+    g.strokePath (path, juce::PathStrokeType (outlineWidth * 2.0f,
+                                              juce::PathStrokeType::curved,
+                                              juce::PathStrokeType::rounded));
+    g.setColour (fill);
+    g.fillPath (path);
+}
+
+// Capsule subpath along `angle` (0 = straight down) added into an existing
+// path; returns the segment end point for chaining.
+Point<float> addCapsule (Path& path, Point<float> start, float angle,
+                         float length, float thickness)
 {
     const Point<float> end (start.x + std::sin (angle) * length,
                             start.y + std::cos (angle) * length);
-    Path p;
-    p.addRoundedRectangle (-thickness * 0.5f, -thickness * 0.35f,
-                           thickness, length + thickness * 0.7f,
-                           thickness * 0.5f);
-    const AffineTransform t = AffineTransform::rotation (-angle)
-                                  .translated (start.x, start.y);
-    p.applyTransform (t);
-    g.setColour (fill);
-    g.fillPath (p);
-    g.setColour (outlineColour);
-    g.strokePath (p, juce::PathStrokeType (outlineWidth));
+    Path capsule;
+    capsule.addRoundedRectangle (-thickness * 0.5f, -thickness * 0.35f,
+                                 thickness, length + thickness * 0.7f,
+                                 thickness * 0.5f);
+    capsule.applyTransform (AffineTransform::rotation (-angle).translated (start.x, start.y));
+    path.addPath (capsule);
     return end;
 }
 
-void drawStar (Graphics& g, Point<float> centre, float radius, Colour fill,
+void addStar (Path& path, Point<float> centre, float radius, float rotation = 0.0f)
+{
+    path.addStar (centre, 5, radius * 0.45f, radius, rotation);
+}
+
+void fillStar (Graphics& g, Point<float> centre, float radius, Colour fill,
                float rotation = 0.0f)
 {
     Path star;
-    star.addStar (centre, 5, radius * 0.45f, radius, rotation);
+    addStar (star, centre, radius, rotation);
     g.setColour (fill);
     g.fillPath (star);
 }
@@ -65,13 +78,10 @@ void drawCompanionStar (Graphics& g, const Metrics& m, const CharacterPose& pose
     const Point<float> pos (m.origin.x + m.H * 0.34f + drift,
                             m.origin.y - m.H * 0.72f + bob
                                 + pose.hairBounceAmount * m.H * 0.02f);
-    // Soft glow, then the star.
     g.setColour (col (accent.soft).withAlpha (0.35f));
     g.fillEllipse (pos.x - m.H * 0.055f, pos.y - m.H * 0.055f, m.H * 0.11f, m.H * 0.11f);
-    drawStar (g, pos, m.H * 0.038f, col (accent.main),
+    fillStar (g, pos, m.H * 0.038f, col (accent.main),
               std::sin (float (look.timeSeconds) * 1.3f) * 0.35f);
-    drawStar (g, { pos.x + m.H * 0.05f, pos.y - m.H * 0.04f }, m.H * 0.014f,
-              col (accent.soft));
 }
 
 void drawLegs (Graphics& g, const Metrics& m, const CharacterPose& pose,
@@ -84,41 +94,41 @@ void drawLegs (Graphics& g, const Metrics& m, const CharacterPose& pose,
     const float lowerLen = m.H * 0.105f;
     const float thick = m.H * 0.052f;
 
-    const Point<float> hipL (m.origin.x - m.H * 0.055f, m.origin.y + m.H * 0.02f);
-    const Point<float> hipR (m.origin.x + m.H * 0.055f, m.origin.y + m.H * 0.02f);
-
-    const auto drawLeg = [&] (Point<float> hip, const CharacterBone& upper,
-                              const CharacterBone& lower)
+    const auto leg = [&] (Point<float> hip, const CharacterBone& upper,
+                          const CharacterBone& lower)
     {
         hip.x += upper.position.x * m.H;
         hip.y += upper.position.y * m.H;
-        const Point<float> knee = drawCapsule (g, hip, upper.rotationRadians,
-                                               upperLen, thick, skin, outlineColour,
-                                               m.outlineWidth);
+
+        // Whole leg = one two-capsule chain, welded by outline-under-fill.
+        Path legPath;
+        const Point<float> knee = addCapsule (legPath, hip, upper.rotationRadians,
+                                              upperLen, thick);
         const float lowerAngle = upper.rotationRadians + lower.rotationRadians;
-        const Point<float> ankle = drawCapsule (g, knee, lowerAngle, lowerLen,
-                                                thick * 0.92f, skin, outlineColour,
-                                                m.outlineWidth);
-        // Rounded boot with a gold trim band.
+        const Point<float> ankle = addCapsule (legPath, knee, lowerAngle,
+                                               lowerLen, thick * 0.92f);
+        outlinedFill (g, legPath, skin, outlineColour, m.outlineWidth * 0.5f);
+
+        // Boot: one rounded shape with a single gold trim stripe.
         const float bootW = thick * 1.5f;
         const float bootH = thick * 1.15f;
-        juce::Rectangle<float> boot (ankle.x - bootW * 0.5f,
-                                     ankle.y - bootH * 0.15f, bootW, bootH);
-        g.setColour (col (outfit.boots));
-        g.fillRoundedRectangle (boot, bootH * 0.4f);
+        Path boot;
+        boot.addRoundedRectangle (ankle.x - bootW * 0.5f, ankle.y - bootH * 0.15f,
+                                  bootW, bootH, bootH * 0.4f);
+        outlinedFill (g, boot, col (outfit.boots), outlineColour, m.outlineWidth * 0.5f);
         g.setColour (col (accent.main));
-        g.fillRoundedRectangle (boot.removeFromTop (bootH * 0.32f), bootH * 0.18f);
-        g.setColour (outlineColour);
-        g.drawRoundedRectangle (ankle.x - bootW * 0.5f, ankle.y - bootH * 0.15f,
-                                bootW, bootH, bootH * 0.4f, m.outlineWidth);
+        g.fillRoundedRectangle (ankle.x - bootW * 0.5f, ankle.y - bootH * 0.15f,
+                                bootW, bootH * 0.32f, bootH * 0.18f);
     };
 
-    drawLeg (hipL, pose.leftUpperLeg, pose.leftLowerLeg);
-    drawLeg (hipR, pose.rightUpperLeg, pose.rightLowerLeg);
+    leg ({ m.origin.x - m.H * 0.055f, m.origin.y + m.H * 0.02f },
+         pose.leftUpperLeg, pose.leftLowerLeg);
+    leg ({ m.origin.x + m.H * 0.055f, m.origin.y + m.H * 0.02f },
+         pose.rightUpperLeg, pose.rightLowerLeg);
 }
 
-void drawTorso (Graphics& g, const Metrics& m, const CharacterPose& pose,
-                const RenderLook& look, Colour outlineColour)
+void drawBody (Graphics& g, const Metrics& m, const CharacterPose& pose,
+               const RenderLook& look, Colour outlineColour)
 {
     const auto outfit = outfitColours[size_t (look.outfit)];
     const auto accent = accentColours[size_t (look.accent)];
@@ -134,44 +144,41 @@ void drawTorso (Graphics& g, const Metrics& m, const CharacterPose& pose,
     const float skirtW = m.H * 0.27f;
     const float skirtH = m.H * 0.10f;
 
-    // Skirt: soft flare.
-    Path skirt;
-    skirt.startNewSubPath (waist.x - torsoW * 0.42f, waist.y - skirtH * 0.6f);
-    skirt.quadraticTo (waist.x - skirtW * 0.62f, waist.y + skirtH * 0.9f,
-                       waist.x - skirtW * 0.45f, waist.y + skirtH);
-    skirt.quadraticTo (waist.x, waist.y + skirtH * 1.25f,
-                       waist.x + skirtW * 0.45f, waist.y + skirtH);
-    skirt.quadraticTo (waist.x + skirtW * 0.62f, waist.y + skirtH * 0.9f,
-                       waist.x + torsoW * 0.42f, waist.y - skirtH * 0.6f);
-    skirt.closeSubPath();
-    g.setColour (col (outfit.skirt));
-    g.fillPath (skirt);
-    g.setColour (outlineColour);
-    g.strokePath (skirt, juce::PathStrokeType (m.outlineWidth));
+    // One dress silhouette: rounded shoulders flowing into a flared hem.
+    Path dress;
+    dress.startNewSubPath (waist.x - torsoW * 0.42f, waist.y - torsoH * 0.92f);
+    dress.quadraticTo (waist.x, waist.y - torsoH * 1.12f,
+                       waist.x + torsoW * 0.42f, waist.y - torsoH * 0.92f);
+    dress.quadraticTo (waist.x + torsoW * 0.55f, waist.y - torsoH * 0.35f,
+                       waist.x + torsoW * 0.48f, waist.y - skirtH * 0.55f);
+    dress.quadraticTo (waist.x + skirtW * 0.62f, waist.y + skirtH * 0.85f,
+                       waist.x + skirtW * 0.42f, waist.y + skirtH * 1.05f);
+    dress.quadraticTo (waist.x, waist.y + skirtH * 1.30f,
+                       waist.x - skirtW * 0.42f, waist.y + skirtH * 1.05f);
+    dress.quadraticTo (waist.x - skirtW * 0.62f, waist.y + skirtH * 0.85f,
+                       waist.x - torsoW * 0.48f, waist.y - skirtH * 0.55f);
+    dress.quadraticTo (waist.x - torsoW * 0.55f, waist.y - torsoH * 0.35f,
+                       waist.x - torsoW * 0.42f, waist.y - torsoH * 0.92f);
+    dress.closeSubPath();
+    outlinedFill (g, dress, col (outfit.jacket), outlineColour, m.outlineWidth * 0.5f);
 
-    // Torso: cream top under an open jacket.
-    juce::Rectangle<float> torso (waist.x - torsoW * 0.5f, waist.y - torsoH,
-                                  torsoW, torsoH);
+    // Cream bib panel — the only inner colour block.
+    Path bib;
+    bib.startNewSubPath (waist.x - torsoW * 0.22f, waist.y - torsoH * 0.98f);
+    bib.quadraticTo (waist.x, waist.y - torsoH * 1.06f,
+                     waist.x + torsoW * 0.22f, waist.y - torsoH * 0.98f);
+    bib.quadraticTo (waist.x + torsoW * 0.26f, waist.y - torsoH * 0.30f,
+                     waist.x + torsoW * 0.18f, waist.y - torsoH * 0.06f);
+    bib.quadraticTo (waist.x, waist.y + torsoH * 0.04f,
+                     waist.x - torsoW * 0.18f, waist.y - torsoH * 0.06f);
+    bib.quadraticTo (waist.x - torsoW * 0.26f, waist.y - torsoH * 0.30f,
+                     waist.x - torsoW * 0.22f, waist.y - torsoH * 0.98f);
+    bib.closeSubPath();
     g.setColour (col (outfit.top));
-    g.fillRoundedRectangle (torso, torsoW * 0.28f);
-
-    // Jacket halves.
-    const float lapel = torsoW * 0.34f;
-    juce::Rectangle<float> jacketL (torso.getX() - torsoW * 0.06f, torso.getY() - torsoH * 0.03f,
-                                    lapel, torsoH * 1.02f);
-    juce::Rectangle<float> jacketR (torso.getRight() - lapel + torsoW * 0.06f,
-                                    torso.getY() - torsoH * 0.03f, lapel, torsoH * 1.02f);
-    g.setColour (col (outfit.jacket));
-    g.fillRoundedRectangle (jacketL, lapel * 0.4f);
-    g.fillRoundedRectangle (jacketR, lapel * 0.4f);
-    g.setColour (col (outfit.jacketShade));
-    g.fillRoundedRectangle (jacketL.removeFromBottom (torsoH * 0.18f), lapel * 0.3f);
-    g.fillRoundedRectangle (jacketR.removeFromBottom (torsoH * 0.18f), lapel * 0.3f);
-    g.setColour (outlineColour);
-    g.drawRoundedRectangle (torso, torsoW * 0.28f, m.outlineWidth);
+    g.fillPath (bib);
 
     // Tiny gold star on the chest.
-    drawStar (g, { waist.x, waist.y - torsoH * 0.58f }, torsoW * 0.10f,
+    fillStar (g, { waist.x, waist.y - torsoH * 0.58f }, torsoW * 0.10f,
               col (accent.main));
 
     // Orbit-ring belt.
@@ -182,10 +189,8 @@ void drawTorso (Graphics& g, const Metrics& m, const CharacterPose& pose,
                          skirtW * 1.04f, skirtH * 0.8f);
         g.setColour (col (accent.main).withAlpha (0.9f));
         g.strokePath (ring, juce::PathStrokeType (m.H * 0.008f));
-        drawStar (g, { waist.x + skirtW * 0.5f, waist.y - skirtH * 0.02f },
+        fillStar (g, { waist.x + skirtW * 0.5f, waist.y - skirtH * 0.02f },
                   m.H * 0.016f, col (accent.soft));
-        drawStar (g, { waist.x - skirtW * 0.45f, waist.y + skirtH * 0.14f },
-                  m.H * 0.012f, col (accent.main));
     }
 }
 
@@ -193,44 +198,36 @@ void drawArms (Graphics& g, const Metrics& m, const CharacterPose& pose,
                const RenderLook& look, Colour outlineColour)
 {
     const auto outfit = outfitColours[size_t (look.outfit)];
-    const Colour skin = col (palette::cream);
     const float upperLen = m.H * 0.115f;
     const float lowerLen = m.H * 0.10f;
     const float thick = m.H * 0.050f;
 
     const float shoulderY = m.origin.y - m.H * 0.215f;
-    const Point<float> shoulderL (m.origin.x - m.H * 0.125f + pose.torso.position.x * m.H,
-                                  shoulderY + pose.torso.position.y * m.H);
-    const Point<float> shoulderR (m.origin.x + m.H * 0.125f + pose.torso.position.x * m.H,
-                                  shoulderY + pose.torso.position.y * m.H);
 
-    const auto drawArm = [&] (Point<float> shoulder, const CharacterBone& upper,
-                              const CharacterBone& lower, bool isLeft)
+    const auto arm = [&] (Point<float> shoulder, const CharacterBone& upper,
+                          const CharacterBone& lower)
     {
         shoulder.x += upper.position.x * m.H;
         shoulder.y += upper.position.y * m.H;
-        // rotation 0 = hanging down; positive opens outward for the left arm,
-        // mirrored for the right (styles use opposite signs already).
-        const float upperAngle = isLeft ? upper.rotationRadians : -(-upper.rotationRadians);
-        // Sleeve then skin forearm.
-        const Point<float> elbow = drawCapsule (g, shoulder, upperAngle, upperLen,
-                                                thick * 1.15f, col (outfit.jacket),
-                                                outlineColour, m.outlineWidth);
-        const float lowerAngle = upperAngle + lower.rotationRadians;
-        const Point<float> wrist = drawCapsule (g, elbow, lowerAngle, lowerLen,
-                                                thick * 0.9f, skin, outlineColour,
-                                                m.outlineWidth);
-        // Rounded mitten hand.
-        const float handR = thick * 0.62f;
-        g.setColour (skin);
-        g.fillEllipse (wrist.x - handR, wrist.y - handR * 0.6f, handR * 2.0f, handR * 2.0f);
-        g.setColour (outlineColour);
-        g.drawEllipse (wrist.x - handR, wrist.y - handR * 0.6f, handR * 2.0f, handR * 2.0f,
-                       m.outlineWidth);
+
+        // Paw-sleeve: the whole arm is one welded chain with a slightly
+        // wider rounded end — reads as a cosy sleeve with a hidden hand.
+        Path armPath;
+        const Point<float> elbow = addCapsule (armPath, shoulder,
+                                               upper.rotationRadians,
+                                               upperLen, thick * 1.1f);
+        addCapsule (armPath, elbow, upper.rotationRadians + lower.rotationRadians,
+                    lowerLen, thick * 1.25f);
+        outlinedFill (g, armPath, col (outfit.jacket), outlineColour,
+                      m.outlineWidth * 0.5f);
     };
 
-    drawArm (shoulderL, pose.leftUpperArm, pose.leftLowerArm, true);
-    drawArm (shoulderR, pose.rightUpperArm, pose.rightLowerArm, false);
+    arm ({ m.origin.x - m.H * 0.125f + pose.torso.position.x * m.H,
+           shoulderY + pose.torso.position.y * m.H },
+         pose.leftUpperArm, pose.leftLowerArm);
+    arm ({ m.origin.x + m.H * 0.125f + pose.torso.position.x * m.H,
+           shoulderY + pose.torso.position.y * m.H },
+         pose.rightUpperArm, pose.rightLowerArm);
 }
 
 void drawFace (Graphics& g, const Metrics& m, const CharacterPose& pose,
@@ -264,24 +261,22 @@ void drawFace (Graphics& g, const Metrics& m, const CharacterPose& pose,
             continue;
         }
 
-        // Big kawaii eye: dark rim, purple iris, sparkle highlights.
+        // One outlined iris + one sparkle (or a star in star-eye mode).
         g.setColour (irisDeep);
         g.fillEllipse (eye.expanded (m.H * 0.004f));
         g.setColour (iris);
         g.fillEllipse (eye);
-        g.setColour (iris.brighter (0.5f));
-        g.fillEllipse (eye.withTrimmedTop (eye.getHeight() * 0.55f).reduced (eyeW * 0.18f, 0.0f));
 
         if (pose.starEyeAmount > 0.35f)
         {
-            drawStar (g, { cx, eyeY }, eyeW * 0.34f,
+            fillStar (g, { cx, eyeY }, eyeW * 0.34f,
                       col (palette::softGold).withAlpha (pose.starEyeAmount));
         }
         else
         {
             g.setColour (juce::Colours::white.withAlpha (0.95f));
-            g.fillEllipse (cx - eyeW * 0.16f, eyeY - eyeH * 0.26f, eyeW * 0.22f, eyeH * 0.26f);
-            g.fillEllipse (cx + eyeW * 0.08f, eyeY + eyeH * 0.05f, eyeW * 0.12f, eyeH * 0.14f);
+            g.fillEllipse (cx - eyeW * 0.16f, eyeY - eyeH * 0.26f,
+                           eyeW * 0.24f, eyeH * 0.28f);
         }
 
         // Brow.
@@ -296,16 +291,18 @@ void drawFace (Graphics& g, const Metrics& m, const CharacterPose& pose,
                                                   juce::PathStrokeType::rounded));
     }
 
-    // Blush.
+    // Blush: both cheeks in one path.
     if (pose.blushAmount > 0.02f)
     {
-        g.setColour (col (palette::roseAccent).withAlpha (0.35f * pose.blushAmount));
         const float bw = face.getWidth() * 0.14f, bh = face.getHeight() * 0.07f;
-        g.fillEllipse (face.getCentreX() - eyeDx - bw * 0.7f, eyeY + eyeHFull * 0.55f, bw, bh);
-        g.fillEllipse (face.getCentreX() + eyeDx - bw * 0.3f, eyeY + eyeHFull * 0.55f, bw, bh);
+        Path blush;
+        blush.addEllipse (face.getCentreX() - eyeDx - bw * 0.7f, eyeY + eyeHFull * 0.55f, bw, bh);
+        blush.addEllipse (face.getCentreX() + eyeDx - bw * 0.3f, eyeY + eyeHFull * 0.55f, bw, bh);
+        g.setColour (col (palette::roseAccent).withAlpha (0.35f * pose.blushAmount));
+        g.fillPath (blush);
     }
 
-    // Mouth: smile arc blended with an open "singing" ellipse.
+    // Mouth: smile arc, or open "singing" shape.
     const float mouthY = face.getY() + face.getHeight() * 0.78f;
     const float mouthW = face.getWidth() * (0.16f + 0.10f * pose.mouthSmileAmount);
     if (pose.mouthOpenAmount > 0.25f)
@@ -314,9 +311,6 @@ void drawFace (Graphics& g, const Metrics& m, const CharacterPose& pose,
         g.setColour (irisDeep);
         g.fillRoundedRectangle (face.getCentreX() - mouthW * 0.4f, mouthY - mh * 0.3f,
                                 mouthW * 0.8f, mh, mh * 0.45f);
-        g.setColour (col (palette::roseAccent).withAlpha (0.7f));
-        g.fillRoundedRectangle (face.getCentreX() - mouthW * 0.25f, mouthY + mh * 0.25f,
-                                mouthW * 0.5f, mh * 0.4f, mh * 0.2f);
     }
     else
     {
@@ -350,11 +344,9 @@ void drawHead (Graphics& g, const Metrics& m, const CharacterPose& pose,
     const float headH = m.H * 0.40f * pose.head.scale;
     juce::Rectangle<float> head (neck.x - headW * 0.5f, neck.y - headH * 0.94f,
                                  headW, headH);
-
     const float hairBob = pose.hairBounceAmount * m.H * 0.015f;
 
-    // Back hair: a soft bob silhouette slightly larger than the head, with
-    // two shoulder-length side locks.
+    // Back hair: bob silhouette + both side locks, welded into one shape.
     Path backHair;
     backHair.addEllipse (head.expanded (headW * 0.10f, headH * 0.10f)
                              .translated (0.0f, hairBob * 0.6f));
@@ -364,8 +356,7 @@ void drawHead (Graphics& g, const Metrics& m, const CharacterPose& pose,
     backHair.addRoundedRectangle (head.getRight() - headW * 0.12f,
                                   head.getCentreY() - headH * 0.10f + hairBob,
                                   headW * 0.22f, headH * 0.48f, headW * 0.11f);
-    g.setColour (col (hair.shade));
-    g.fillPath (backHair);
+    outlinedFill (g, backHair, col (hair.shade), outlineColour, m.outlineWidth * 0.5f);
 
     // Face.
     g.setColour (skin);
@@ -375,51 +366,44 @@ void drawHead (Graphics& g, const Metrics& m, const CharacterPose& pose,
 
     drawFace (g, m, pose, look, head);
 
-    // Bangs: scalloped fringe across the forehead.
-    Path bangs;
-    const float fringeTop = head.getY() - headH * 0.06f + hairBob;
-    const float fringeBottom = head.getY() + headH * 0.34f + hairBob;
-    bangs.startNewSubPath (head.getX() - headW * 0.04f, fringeTop + headH * 0.25f);
-    bangs.quadraticTo (head.getX() + headW * 0.02f, fringeTop,
-                       head.getCentreX(), fringeTop - headH * 0.02f);
-    bangs.quadraticTo (head.getRight() - headW * 0.02f, fringeTop,
-                       head.getRight() + headW * 0.04f, fringeTop + headH * 0.25f);
-    bangs.lineTo (head.getRight() + headW * 0.01f, fringeBottom);
-    // Three scallops back across the forehead.
-    const float w = head.getWidth();
-    bangs.quadraticTo (head.getX() + w * 0.83f, fringeBottom + headH * 0.10f,
-                       head.getX() + w * 0.66f, fringeBottom - headH * 0.015f);
-    bangs.quadraticTo (head.getX() + w * 0.50f, fringeBottom + headH * 0.12f,
-                       head.getX() + w * 0.34f, fringeBottom - headH * 0.015f);
-    bangs.quadraticTo (head.getX() + w * 0.17f, fringeBottom + headH * 0.10f,
-                       head.getX() - headW * 0.01f, fringeBottom);
-    bangs.closeSubPath();
-    g.setColour (col (hair.base));
-    g.fillPath (bangs);
-    g.setColour (col (hair.highlight).withAlpha (0.55f));
-    g.fillEllipse (head.getX() + w * 0.16f, fringeTop + headH * 0.03f,
-                   w * 0.30f, headH * 0.075f);
-    g.setColour (outlineColour);
-    g.strokePath (bangs, juce::PathStrokeType (m.outlineWidth * 0.8f));
-
-    // Space buns.
-    const float bunR = headW * 0.135f;
-    const Point<float> bunL (head.getX() + headW * 0.10f, head.getY() + hairBob);
-    const Point<float> bunR_ (head.getRight() - headW * 0.10f, head.getY() + hairBob);
-    for (const auto& bun : { bunL, bunR_ })
+    // Front hair: bangs + both space buns welded into one shape over the face.
+    Path frontHair;
     {
-        g.setColour (col (hair.base));
-        g.fillEllipse (bun.x - bunR, bun.y - bunR, bunR * 2.0f, bunR * 2.0f);
-        g.setColour (col (hair.highlight).withAlpha (0.5f));
-        g.fillEllipse (bun.x - bunR * 0.45f, bun.y - bunR * 0.65f, bunR * 0.8f, bunR * 0.5f);
-        g.setColour (outlineColour);
-        g.drawEllipse (bun.x - bunR, bun.y - bunR, bunR * 2.0f, bunR * 2.0f,
-                       m.outlineWidth * 0.8f);
+        Path bangs;
+        const float fringeTop = head.getY() - headH * 0.06f + hairBob;
+        const float fringeBottom = head.getY() + headH * 0.34f + hairBob;
+        const float w = head.getWidth();
+        bangs.startNewSubPath (head.getX() - headW * 0.04f, fringeTop + headH * 0.25f);
+        bangs.quadraticTo (head.getX() + headW * 0.02f, fringeTop,
+                           head.getCentreX(), fringeTop - headH * 0.02f);
+        bangs.quadraticTo (head.getRight() - headW * 0.02f, fringeTop,
+                           head.getRight() + headW * 0.04f, fringeTop + headH * 0.25f);
+        bangs.lineTo (head.getRight() + headW * 0.01f, fringeBottom);
+        bangs.quadraticTo (head.getX() + w * 0.83f, fringeBottom + headH * 0.10f,
+                           head.getX() + w * 0.66f, fringeBottom - headH * 0.015f);
+        bangs.quadraticTo (head.getX() + w * 0.50f, fringeBottom + headH * 0.12f,
+                           head.getX() + w * 0.34f, fringeBottom - headH * 0.015f);
+        bangs.quadraticTo (head.getX() + w * 0.17f, fringeBottom + headH * 0.10f,
+                           head.getX() - headW * 0.01f, fringeBottom);
+        bangs.closeSubPath();
+        frontHair.addPath (bangs);
     }
+    const float bunR = headW * 0.135f;
+    const Point<float> bunLeft (head.getX() + headW * 0.10f, head.getY() + hairBob);
+    const Point<float> bunRight (head.getRight() - headW * 0.10f, head.getY() + hairBob);
+    frontHair.addEllipse (bunLeft.x - bunR, bunLeft.y - bunR, bunR * 2.0f, bunR * 2.0f);
+    frontHair.addEllipse (bunRight.x - bunR, bunRight.y - bunR, bunR * 2.0f, bunR * 2.0f);
+    outlinedFill (g, frontHair, col (hair.base), outlineColour, m.outlineWidth * 0.5f);
+
+    // Single soft highlight across the fringe.
+    g.setColour (col (hair.highlight).withAlpha (0.55f));
+    g.fillEllipse (head.getX() + headW * 0.16f,
+                   head.getY() - headH * 0.03f + hairBob,
+                   headW * 0.30f, headH * 0.075f);
 
     // Gold star clip on the right bun.
     if ((look.accessories & accStarClip) != 0)
-        drawStar (g, { bunR_.x + bunR * 0.15f, bunR_.y + bunR * 0.25f },
+        fillStar (g, { bunRight.x + bunR * 0.15f, bunRight.y + bunR * 0.25f },
                   bunR * 0.55f, col (accent.main), 0.3f);
 
     // Crescent pin in the left bangs.
@@ -437,28 +421,26 @@ void drawHead (Graphics& g, const Metrics& m, const CharacterPose& pose,
         g.fillPath (crescent);
     }
 
-    // Headphones: band over the head, cups over the side locks.
+    // Headphones: band + both cups in one welded shape.
     if ((look.accessories & accHeadphones) != 0)
     {
+        Path phones;
         Path band;
         band.addCentredArc (head.getCentreX(), head.getY() + headH * 0.30f,
                             headW * 0.56f, headH * 0.52f, 0.0f, -kHalfPi * 1.25f,
                             kHalfPi * 1.25f, true);
-        g.setColour (col (palette::deepPlum).brighter (0.15f));
-        g.strokePath (band, juce::PathStrokeType (m.H * 0.020f,
-                                                  juce::PathStrokeType::curved,
-                                                  juce::PathStrokeType::rounded));
+        juce::PathStrokeType (m.H * 0.020f, juce::PathStrokeType::curved,
+                              juce::PathStrokeType::rounded)
+            .createStrokedPath (phones, band);
         const float cupW = headW * 0.16f, cupH = headH * 0.26f;
-        g.setColour (col (palette::deepPlum).brighter (0.1f));
-        g.fillRoundedRectangle (head.getX() - cupW * 0.62f, head.getCentreY() - cupH * 0.4f,
-                                cupW, cupH, cupW * 0.35f);
-        g.fillRoundedRectangle (head.getRight() - cupW * 0.38f, head.getCentreY() - cupH * 0.4f,
-                                cupW, cupH, cupW * 0.35f);
-        g.setColour (col (accent.main));
-        g.drawRoundedRectangle (head.getX() - cupW * 0.62f, head.getCentreY() - cupH * 0.4f,
-                                cupW, cupH, cupW * 0.35f, m.H * 0.006f);
-        g.drawRoundedRectangle (head.getRight() - cupW * 0.38f, head.getCentreY() - cupH * 0.4f,
-                                cupW, cupH, cupW * 0.35f, m.H * 0.006f);
+        phones.addRoundedRectangle (head.getX() - cupW * 0.62f,
+                                    head.getCentreY() - cupH * 0.4f,
+                                    cupW, cupH, cupW * 0.35f);
+        phones.addRoundedRectangle (head.getRight() - cupW * 0.38f,
+                                    head.getCentreY() - cupH * 0.4f,
+                                    cupW, cupH, cupW * 0.35f);
+        outlinedFill (g, phones, col (palette::deepPlum).brighter (0.12f),
+                      col (accent.main), m.outlineWidth * 0.4f);
     }
 }
 } // namespace
@@ -502,7 +484,7 @@ void LumiRenderer::draw (juce::Graphics& g, const CharacterPose& pose,
         drawCompanionStar (g, m, pose, look);
 
     drawLegs (g, m, pose, look, outlineColour);
-    drawTorso (g, m, pose, look, outlineColour);
+    drawBody (g, m, pose, look, outlineColour);
     drawArms (g, m, pose, look, outlineColour);
     drawHead (g, m, pose, look, outlineColour);
 }
